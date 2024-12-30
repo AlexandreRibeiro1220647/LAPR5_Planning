@@ -59,7 +59,7 @@ surgery(so4,45,75,45).
 
 surgery_id(so100001,so2).
 surgery_id(so100002,so3).
-%surgery_id(so100003,so4).
+surgery_id(so100003,so4).
 %surgery_id(so100004,so2).
 %surgery_id(so100005,so4).
 
@@ -78,6 +78,12 @@ assignment_surgery(so100002,n001).
 assignment_surgery(so100002,d004).
 assignment_surgery(so100002,t001).
 
+assignment_surgery(so100003,d003).
+assignment_surgery(so100003,n002).
+assignment_surgery(so100003,d004).
+assignment_surgery(so100003,t001).
+
+
 
 %assignment_surgery(so100002,d002).
 %assignment_surgery(so100003,d003).
@@ -91,7 +97,75 @@ assignment_surgery(so100002,t001).
 
 
 agenda_operation_room(or1,20241028,[]).
+agenda_operation_room(or2,20241028,[]).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+schedule_surgeries_across_rooms(Rooms, Day) :-
+    clean_dynamic_data,
+    create_dynamic_data(Day),
+    define_staff_availability,
+
+    findall(OpCode, surgery_id(OpCode, _), LOpCode),
+    distribute_surgeries(LOpCode, Rooms, Day),
+    print_rooms_surgeries(Rooms, Day),
+    !.
+
+
+distribute_surgeries([], _, _).
+distribute_surgeries([OpCode | Rest], Rooms, Day) :-
+    surgery_id(OpCode, OpType),
+    surgery(OpType, TAnesthesia, TSurgery, TCleaning),
+
+    % Find the least crowded room
+    find_least_crowded_room(Rooms, Day, Room),
+
+    % Check room availability for this surgery
+    availability_operation(OpCode, Room, Day, Interval, LDoctorsSurgery, LStaffAnesthesia, LStaffCleaning),
+
+    % Calculate the intervals for the surgery
+    calculate_intervals(Interval, TAnesthesia, TSurgery, TCleaning,
+                        MinuteStartAnesthesia, MinuteStartSurgery, MinuteStartCleaning, MinuteEndProcess),
+
+    % Update the agenda for the room
+    retract(agenda_operation_room1(Room, Day, Agenda)),
+    insert_agenda((MinuteStartAnesthesia, MinuteEndProcess, OpCode), Agenda, UpdatedAgenda),
+    assertz(agenda_operation_room1(Room, Day, UpdatedAgenda)),
+
+    % Update the staff schedules
+    insert_agenda_staff((MinuteStartSurgery, MinuteStartCleaning, OpCode), Day, LDoctorsSurgery),
+    insert_agenda_staff((MinuteStartAnesthesia, MinuteStartCleaning, OpCode), Day, LStaffAnesthesia),
+    insert_agenda_staff((MinuteStartCleaning, MinuteEndProcess, OpCode), Day, LStaffCleaning),
+
+    % Record the surgery in 'better_sol' with the room
+    assertz(better_sol(OpCode, Room, Day, MinuteStartAnesthesia, MinuteEndProcess)),
+
+    % Recursively distribute the next surgeries
+    distribute_surgeries(Rest, Rooms, Day).
+
+
+
+% find_least_crowded_room(+Rooms, +Day, -Room)
+% Finds the room with the least number of surgeries already scheduled.
+find_least_crowded_room([Room],Day, Room).
+find_least_crowded_room([Room1, Room2 | Rest], Day, ChosenRoom) :-
+    agenda_operation_room1(Room1, Day, Agenda1),
+    agenda_operation_room1(Room2, Day, Agenda2),
+
+    length(Agenda1, Count1),
+    length(Agenda2, Count2),
+
+    (Count1 =< Count2 -> find_least_crowded_room([Room1 | Rest], Day, ChosenRoom) ; find_least_crowded_room([Room2 | Rest], Day, ChosenRoom)).
+
+% print_rooms_surgeries(+Rooms, +Day)
+% Prints the surgeries scheduled in each room for the given day.
+print_rooms_surgeries([], _).
+print_rooms_surgeries([Room | Rest], Day) :-
+    agenda_operation_room1(Room, Day, Agenda),
+    format('Room ~w: ~w~n', [Room, Agenda]),
+    print_rooms_surgeries(Rest, Day).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 free_agenda0([],[(0,1440)]).
 free_agenda0([(0,Tfin,_)|LT],LT1):-!,free_agenda1([(0,Tfin,_)|LT],LT1).
