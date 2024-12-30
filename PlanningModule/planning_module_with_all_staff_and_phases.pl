@@ -102,9 +102,12 @@ agenda_operation_room(or2,20241028,[]).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 schedule_surgeries_across_rooms(Rooms, Day) :-
-    clean_dynamic_data,
-    create_dynamic_data(Day),
-    define_staff_availability,
+    retractall(agenda_staff1(_,_,_)),
+    retractall(agenda_operation_room1(_,_,_)),
+    retractall(availability(_,_,_)),
+    findall(_,(agenda_staff(D,Day,Agenda),assertz(agenda_staff1(D,Day,Agenda))),_),
+    agenda_operation_room(Or,Date,Agenda),assert(agenda_operation_room1(Or,Date,Agenda)),
+    findall(_,(agenda_staff1(D,Date,L),free_agenda0(L,LFA),adapt_timetable(D,Date,LFA,LFA2),assertz(availability(D,Date,LFA2))),_),
 
     findall(OpCode, surgery_id(OpCode, _), LOpCode),
     distribute_surgeries(LOpCode, Rooms, Day),
